@@ -1,0 +1,127 @@
+# ============================================
+# COMANDOS ÚTILES - API CAFÉ PRODUCCIÓN
+# ============================================
+
+# ===== INICIAR LA API =====
+# Opción 1: Con script
+.\start-api.ps1
+
+# Opción 2: Manual (HTTP)
+dotnet run --launch-profile http
+
+# Opción 3: Manual (HTTPS)
+dotnet run --launch-profile https
+
+# ===== PROBAR LA API =====
+# Ejecutar tests automáticos
+.\test-api.ps1
+
+# Abrir Swagger UI en navegador
+Start-Process "http://localhost:5190"
+
+# ===== BASE DE DATOS =====
+# Instalar herramientas EF Core
+dotnet tool install --global dotnet-ef
+
+# Crear migración
+dotnet ef migrations add NombreMigracion
+
+# Aplicar migraciones
+dotnet ef database update
+
+# Revertir última migración
+dotnet ef migrations remove
+
+# Ver lista de migraciones
+dotnet ef migrations list
+
+# Eliminar base de datos
+dotnet ef database drop
+
+# ===== COMPILACIÓN =====
+# Compilar proyecto
+dotnet build
+
+# Limpiar y compilar
+dotnet clean
+dotnet build
+
+# Restaurar paquetes NuGet
+dotnet restore
+
+# ===== PAQUETES =====
+# Agregar paquete NuGet
+dotnet add package NombrePaquete
+
+# Listar paquetes instalados
+dotnet list package
+
+# Actualizar paquetes
+dotnet list package --outdated
+dotnet add package NombrePaquete
+
+# ===== DESARROLLO =====
+# Ver versión de .NET
+dotnet --version
+
+# Ver información del proyecto
+dotnet --info
+
+# Ejecutar con hot reload (watch)
+dotnet watch run --launch-profile http
+
+# ===== PRUEBAS RÁPIDAS CON CURL =====
+# GET - Obtener proveedores
+curl http://localhost:5190/api/Proveedores
+
+# POST - Crear proveedor
+curl -X POST http://localhost:5190/api/Proveedores `
+  -H "Content-Type: application/json" `
+  -d '{"nombre":"Café Premium S.A."}'
+
+# GET - Obtener clientes
+curl http://localhost:5190/api/Clientes
+
+# POST - Crear cliente
+curl -X POST http://localhost:5190/api/Clientes `
+  -H "Content-Type: application/json" `
+  -d '{"nombre":"Cliente Nuevo","tipo":"Minorista","email":"cliente@example.com"}'
+
+# ===== PRUEBAS CON POWERSHELL =====
+# GET - Obtener todos los proveedores
+Invoke-RestMethod -Uri "http://localhost:5190/api/Proveedores" -Method GET
+
+# POST - Crear proveedor
+$body = @{ nombre = "Café Test" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:5190/api/Proveedores" -Method POST -Body $body -ContentType "application/json"
+
+# PUT - Actualizar proveedor
+$body = @{ id = 1; nombre = "Café Actualizado" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:5190/api/Proveedores/1" -Method PUT -Body $body -ContentType "application/json"
+
+# DELETE - Eliminar proveedor
+Invoke-RestMethod -Uri "http://localhost:5190/api/Proveedores/1" -Method DELETE
+
+# ===== ENDPOINTS DISPONIBLES =====
+# http://localhost:5190/api/Proveedores
+# http://localhost:5190/api/OrdenesCompras
+# http://localhost:5190/api/TiposGranos
+# http://localhost:5190/api/Etapas
+# http://localhost:5190/api/Lotes
+# http://localhost:5190/api/Presentaciones
+# http://localhost:5190/api/Productos
+# http://localhost:5190/api/LotesTerminados
+# http://localhost:5190/api/Clientes
+# http://localhost:5190/api/Pedidos
+# http://localhost:5190/api/Rutas
+# http://localhost:5190/api/Catacions
+# http://localhost:5190/api/OrdenCompraTipoGranos
+# http://localhost:5190/api/OrdenCompraTipoGranoLotes
+# http://localhost:5190/api/LoteEtapas
+# http://localhost:5190/api/PedidoLoteTerminados
+# http://localhost:5190/api/PedidoRutas
+
+# ===== URLS IMPORTANTES =====
+# Swagger UI: http://localhost:5190
+# OpenAPI JSON: http://localhost:5190/swagger/v1/swagger.json
+# Health Check: http://localhost:5190/api/Proveedores (cualquier endpoint GET)
