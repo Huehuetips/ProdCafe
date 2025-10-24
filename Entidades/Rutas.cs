@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace ApiEjemplo.Models
 {
@@ -23,6 +24,7 @@ namespace ApiEjemplo.Models
         public double TiempoEstimadoH { get; set; }
 
         // Navigation properties
+        [JsonIgnore]
         public ICollection<PedidoRuta> PedidoRutas { get; set; } = new List<PedidoRuta>();
     }
 }

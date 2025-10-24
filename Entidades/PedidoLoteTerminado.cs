@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace ApiEjemplo.Models
 {
@@ -24,12 +25,15 @@ namespace ApiEjemplo.Models
 
         // Navigation properties
         [ForeignKey(nameof(LoteTerminadoId))]
-        public LotesTerminados LoteTerminado { get; set; } = null!;
+        [JsonIgnore]
+        public LotesTerminados? LoteTerminado { get; set; }
 
         [ForeignKey(nameof(ProductoId))]
-        public Productos Producto { get; set; } = null!;
+        [JsonIgnore]
+        public Productos? Producto { get; set; }
 
         [ForeignKey(nameof(PedidoId))]
-        public Pedidos Pedido { get; set; } = null!;
+        [JsonIgnore]
+        public Pedidos? Pedido { get; set; }
     }
 }

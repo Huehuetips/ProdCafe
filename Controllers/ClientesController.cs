@@ -23,86 +23,232 @@ namespace ApiEjemplo.Controllers
 
         // GET: api/Clientes
         [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<IEnumerable<Clientes>>> GetClientes()
         {
-            return await _context.Clientes.ToListAsync();
+            try
+            {
+                var clientes = await _context.Clientes
+                    .Include(c => c.Pedidos)
+                    .ToListAsync();
+                
+                return Ok(clientes);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener los clientes", error = ex.Message });
+            }
         }
 
         // GET: api/Clientes/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Clientes>> GetClientes(int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<Clientes>> GetCliente(int id)
         {
-            var clientes = await _context.Clientes.FindAsync(id);
-
-            if (clientes == null)
+            try
             {
-                return NotFound();
-            }
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
 
-            return clientes;
+                var cliente = await _context.Clientes
+                    .Include(c => c.Pedidos)
+                    .FirstOrDefaultAsync(c => c.Id == id);
+
+                if (cliente == null)
+                {
+                    return NotFound(new { message = $"Cliente con ID {id} no encontrado" });
+                }
+
+                return Ok(cliente);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener el cliente", error = ex.Message });
+            }
         }
 
         // PUT: api/Clientes/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutClientes(int id, Clientes clientes)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> PutCliente(int id, Clientes cliente)
         {
-            if (id != clientes.Id)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(clientes).State = EntityState.Modified;
-
             try
             {
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
+
+                if (id != cliente.Id)
+                {
+                    return BadRequest(new { message = "El ID de la URL no coincide con el ID del cliente" });
+                }
+
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                // Validar que el nombre no esté vacío
+                if (string.IsNullOrWhiteSpace(cliente.Nombre))
+                {
+                    return BadRequest(new { message = "El nombre del cliente es requerido" });
+                }
+
+                // Validar formato de email si se proporciona
+                if (!string.IsNullOrWhiteSpace(cliente.Email) && !IsValidEmail(cliente.Email))
+                {
+                    return BadRequest(new { message = "El formato del email no es válido" });
+                }
+
+                var clienteExistente = await _context.Clientes.FindAsync(id);
+                if (clienteExistente == null)
+                {
+                    return NotFound(new { message = $"Cliente con ID {id} no encontrado" });
+                }
+
+                // Actualizar propiedades
+                clienteExistente.Nombre = cliente.Nombre;
+                clienteExistente.Tipo = cliente.Tipo;
+                clienteExistente.Contacto = cliente.Contacto;
+                clienteExistente.Direccion = cliente.Direccion;
+                clienteExistente.Telefono = cliente.Telefono;
+                clienteExistente.Email = cliente.Email;
+
                 await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Cliente actualizado exitosamente", cliente = clienteExistente });
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!ClientesExists(id))
+                if (!ClienteExists(id))
                 {
-                    return NotFound();
+                    return NotFound(new { message = $"Cliente con ID {id} no encontrado" });
                 }
-                else
-                {
-                    throw;
-                }
+                throw;
             }
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al actualizar el cliente", error = ex.Message });
+            }
         }
 
         // POST: api/Clientes
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Clientes>> PostClientes(Clientes clientes)
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<Clientes>> PostCliente(Clientes cliente)
         {
-            _context.Clientes.Add(clientes);
-            await _context.SaveChangesAsync();
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
 
-            return CreatedAtAction("GetClientes", new { id = clientes.Id }, clientes);
+                // Validar que el nombre no esté vacío
+                if (string.IsNullOrWhiteSpace(cliente.Nombre))
+                {
+                    return BadRequest(new { message = "El nombre del cliente es requerido" });
+                }
+
+                // Validar formato de email si se proporciona
+                if (!string.IsNullOrWhiteSpace(cliente.Email) && !IsValidEmail(cliente.Email))
+                {
+                    return BadRequest(new { message = "El formato del email no es válido" });
+                }
+
+                // Validar que no exista un cliente con el mismo email
+                if (!string.IsNullOrWhiteSpace(cliente.Email))
+                {
+                    var emailExiste = await _context.Clientes.AnyAsync(c => c.Email == cliente.Email);
+                    if (emailExiste)
+                    {
+                        return BadRequest(new { message = "Ya existe un cliente con ese email" });
+                    }
+                }
+
+                _context.Clientes.Add(cliente);
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction(nameof(GetCliente), new { id = cliente.Id }, cliente);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al crear el cliente", error = ex.Message });
+            }
         }
 
         // DELETE: api/Clientes/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteClientes(int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteCliente(int id)
         {
-            var clientes = await _context.Clientes.FindAsync(id);
-            if (clientes == null)
+            try
             {
-                return NotFound();
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
+
+                var cliente = await _context.Clientes
+                    .Include(c => c.Pedidos)
+                    .FirstOrDefaultAsync(c => c.Id == id);
+
+                if (cliente == null)
+                {
+                    return NotFound(new { message = $"Cliente con ID {id} no encontrado" });
+                }
+
+                // Verificar si tiene pedidos asociados
+                if (cliente.Pedidos.Any())
+                {
+                    return BadRequest(new 
+                    { 
+                        message = "No se puede eliminar el cliente porque tiene pedidos asociados",
+                        pedidosCount = cliente.Pedidos.Count
+                    });
+                }
+
+                _context.Clientes.Remove(cliente);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Cliente eliminado exitosamente" });
             }
-
-            _context.Clientes.Remove(clientes);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al eliminar el cliente", error = ex.Message });
+            }
         }
 
-        private bool ClientesExists(int id)
+        private bool ClienteExists(int id)
         {
             return _context.Clientes.Any(e => e.Id == id);
+        }
+
+        private bool IsValidEmail(string email)
+        {
+            try
+            {
+                var addr = new System.Net.Mail.MailAddress(email);
+                return addr.Address == email;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

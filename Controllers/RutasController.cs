@@ -23,84 +23,252 @@ namespace ApiEjemplo.Controllers
 
         // GET: api/Rutas
         [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<IEnumerable<Rutas>>> GetRutas()
         {
-            return await _context.Rutas.ToListAsync();
+            try
+            {
+                var rutas = await _context.Rutas
+                    .Include(r => r.PedidoRutas)
+                        .ThenInclude(pr => pr.Pedido)
+                    .ToListAsync();
+                
+                return Ok(rutas);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener las rutas", error = ex.Message });
+            }
         }
 
         // GET: api/Rutas/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Rutas>> GetRutas(int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<Rutas>> GetRuta(int id)
         {
-            var rutas = await _context.Rutas.FindAsync(id);
-
-            if (rutas == null)
+            try
             {
-                return NotFound();
-            }
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
 
-            return rutas;
+                var ruta = await _context.Rutas
+                    .Include(r => r.PedidoRutas)
+                        .ThenInclude(pr => pr.Pedido)
+                            .ThenInclude(p => p.Cliente)
+                    .FirstOrDefaultAsync(r => r.Id == id);
+
+                if (ruta == null)
+                {
+                    return NotFound(new { message = $"Ruta con ID {id} no encontrada" });
+                }
+
+                return Ok(ruta);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener la ruta", error = ex.Message });
+            }
+        }
+
+        // GET: api/Rutas/PorZona/{zona}
+        [HttpGet("PorZona/{zona}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<ActionResult<IEnumerable<Rutas>>> GetRutasPorZona(string zona)
+        {
+            try
+            {
+                var rutas = await _context.Rutas
+                    .Where(r => r.Zona == zona)
+                    .Include(r => r.PedidoRutas)
+                    .ToListAsync();
+
+                return Ok(rutas);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener las rutas por zona", error = ex.Message });
+            }
+        }
+
+        // GET: api/Rutas/PorTipo/{tipo}
+        [HttpGet("PorTipo/{tipo}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<ActionResult<IEnumerable<Rutas>>> GetRutasPorTipo(string tipo)
+        {
+            try
+            {
+                var rutas = await _context.Rutas
+                    .Where(r => r.Tipo == tipo)
+                    .ToListAsync();
+
+                return Ok(rutas);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener las rutas por tipo", error = ex.Message });
+            }
         }
 
         // PUT: api/Rutas/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutRutas(int id, Rutas rutas)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> PutRuta(int id, Rutas ruta)
         {
-            if (id != rutas.Id)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(rutas).State = EntityState.Modified;
-
             try
             {
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
+
+                if (id != ruta.Id)
+                {
+                    return BadRequest(new { message = "El ID de la URL no coincide con el ID de la ruta" });
+                }
+
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                // Validar campos requeridos
+                if (string.IsNullOrWhiteSpace(ruta.Nombre))
+                {
+                    return BadRequest(new { message = "El nombre de la ruta es requerido" });
+                }
+
+                if (ruta.TiempoEstimadoH < 0)
+                {
+                    return BadRequest(new { message = "El tiempo estimado no puede ser negativo" });
+                }
+
+                var rutaExistente = await _context.Rutas.FindAsync(id);
+                if (rutaExistente == null)
+                {
+                    return NotFound(new { message = $"Ruta con ID {id} no encontrada" });
+                }
+
+                // Actualizar propiedades
+                rutaExistente.Tipo = ruta.Tipo;
+                rutaExistente.Nombre = ruta.Nombre;
+                rutaExistente.Zona = ruta.Zona;
+                rutaExistente.TiempoEstimadoH = ruta.TiempoEstimadoH;
+
                 await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Ruta actualizada exitosamente", ruta = rutaExistente });
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!RutasExists(id))
+                if (!RutaExists(id))
                 {
-                    return NotFound();
+                    return NotFound(new { message = $"Ruta con ID {id} no encontrada" });
                 }
-                else
-                {
-                    throw;
-                }
+                throw;
             }
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al actualizar la ruta", error = ex.Message });
+            }
         }
 
         // POST: api/Rutas
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Rutas>> PostRutas(Rutas rutas)
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<Rutas>> PostRuta(Rutas ruta)
         {
-            _context.Rutas.Add(rutas);
-            await _context.SaveChangesAsync();
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
 
-            return CreatedAtAction("GetRutas", new { id = rutas.Id }, rutas);
+                // Validar campos requeridos
+                if (string.IsNullOrWhiteSpace(ruta.Nombre))
+                {
+                    return BadRequest(new { message = "El nombre de la ruta es requerido" });
+                }
+
+                if (ruta.TiempoEstimadoH < 0)
+                {
+                    return BadRequest(new { message = "El tiempo estimado no puede ser negativo" });
+                }
+
+                // Validar que no exista una ruta con el mismo nombre
+                var nombreExiste = await _context.Rutas.AnyAsync(r => r.Nombre == ruta.Nombre);
+                if (nombreExiste)
+                {
+                    return BadRequest(new { message = "Ya existe una ruta con ese nombre" });
+                }
+
+                _context.Rutas.Add(ruta);
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction(nameof(GetRuta), new { id = ruta.Id }, ruta);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al crear la ruta", error = ex.Message });
+            }
         }
 
         // DELETE: api/Rutas/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteRutas(int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteRuta(int id)
         {
-            var rutas = await _context.Rutas.FindAsync(id);
-            if (rutas == null)
+            try
             {
-                return NotFound();
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
+
+                var ruta = await _context.Rutas
+                    .Include(r => r.PedidoRutas)
+                    .FirstOrDefaultAsync(r => r.Id == id);
+
+                if (ruta == null)
+                {
+                    return NotFound(new { message = $"Ruta con ID {id} no encontrada" });
+                }
+
+                // Verificar si tiene pedidos asociados
+                if (ruta.PedidoRutas.Any())
+                {
+                    return BadRequest(new 
+                    { 
+                        message = "No se puede eliminar la ruta porque tiene pedidos asociados",
+                        pedidosCount = ruta.PedidoRutas.Count
+                    });
+                }
+
+                _context.Rutas.Remove(ruta);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Ruta eliminada exitosamente" });
             }
-
-            _context.Rutas.Remove(rutas);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al eliminar la ruta", error = ex.Message });
+            }
         }
 
-        private bool RutasExists(int id)
+        private bool RutaExists(int id)
         {
             return _context.Rutas.Any(e => e.Id == id);
         }

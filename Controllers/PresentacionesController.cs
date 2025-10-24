@@ -23,84 +23,197 @@ namespace ApiEjemplo.Controllers
 
         // GET: api/Presentaciones
         [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<IEnumerable<Presentaciones>>> GetPresentaciones()
         {
-            return await _context.Presentaciones.ToListAsync();
+            try
+            {
+                var presentaciones = await _context.Presentaciones
+                    .Include(p => p.Productos)
+                    .ToListAsync();
+                
+                return Ok(presentaciones);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener las presentaciones", error = ex.Message });
+            }
         }
 
         // GET: api/Presentaciones/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Presentaciones>> GetPresentaciones(int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<Presentaciones>> GetPresentacion(int id)
         {
-            var presentaciones = await _context.Presentaciones.FindAsync(id);
-
-            if (presentaciones == null)
+            try
             {
-                return NotFound();
-            }
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
 
-            return presentaciones;
+                var presentacion = await _context.Presentaciones
+                    .Include(p => p.Productos)
+                    .FirstOrDefaultAsync(p => p.Id == id);
+
+                if (presentacion == null)
+                {
+                    return NotFound(new { message = $"Presentación con ID {id} no encontrada" });
+                }
+
+                return Ok(presentacion);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener la presentación", error = ex.Message });
+            }
         }
 
         // PUT: api/Presentaciones/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutPresentaciones(int id, Presentaciones presentaciones)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> PutPresentacion(int id, Presentaciones presentacion)
         {
-            if (id != presentaciones.Id)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(presentaciones).State = EntityState.Modified;
-
             try
             {
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
+
+                if (id != presentacion.Id)
+                {
+                    return BadRequest(new { message = "El ID de la URL no coincide con el ID de la presentación" });
+                }
+
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                // Validar que el tipo no esté vacío
+                if (string.IsNullOrWhiteSpace(presentacion.Tipo))
+                {
+                    return BadRequest(new { message = "El tipo de presentación es requerido" });
+                }
+
+                var presentacionExistente = await _context.Presentaciones.FindAsync(id);
+                if (presentacionExistente == null)
+                {
+                    return NotFound(new { message = $"Presentación con ID {id} no encontrada" });
+                }
+
+                // Actualizar propiedades
+                presentacionExistente.Tipo = presentacion.Tipo;
+
                 await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Presentación actualizada exitosamente", presentacion = presentacionExistente });
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!PresentacionesExists(id))
+                if (!PresentacionExists(id))
                 {
-                    return NotFound();
+                    return NotFound(new { message = $"Presentación con ID {id} no encontrada" });
                 }
-                else
-                {
-                    throw;
-                }
+                throw;
             }
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al actualizar la presentación", error = ex.Message });
+            }
         }
 
         // POST: api/Presentaciones
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Presentaciones>> PostPresentaciones(Presentaciones presentaciones)
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<Presentaciones>> PostPresentacion(Presentaciones presentacion)
         {
-            _context.Presentaciones.Add(presentaciones);
-            await _context.SaveChangesAsync();
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
 
-            return CreatedAtAction("GetPresentaciones", new { id = presentaciones.Id }, presentaciones);
+                // Validar que el tipo no esté vacío
+                if (string.IsNullOrWhiteSpace(presentacion.Tipo))
+                {
+                    return BadRequest(new { message = "El tipo de presentación es requerido" });
+                }
+
+                // Validar que no exista una presentación con el mismo tipo
+                var tipoExiste = await _context.Presentaciones.AnyAsync(p => p.Tipo == presentacion.Tipo);
+                if (tipoExiste)
+                {
+                    return BadRequest(new { message = "Ya existe una presentación con ese tipo" });
+                }
+
+                _context.Presentaciones.Add(presentacion);
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction(nameof(GetPresentacion), new { id = presentacion.Id }, presentacion);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al crear la presentación", error = ex.Message });
+            }
         }
 
         // DELETE: api/Presentaciones/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeletePresentaciones(int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeletePresentacion(int id)
         {
-            var presentaciones = await _context.Presentaciones.FindAsync(id);
-            if (presentaciones == null)
+            try
             {
-                return NotFound();
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
+
+                var presentacion = await _context.Presentaciones
+                    .Include(p => p.Productos)
+                    .FirstOrDefaultAsync(p => p.Id == id);
+
+                if (presentacion == null)
+                {
+                    return NotFound(new { message = $"Presentación con ID {id} no encontrada" });
+                }
+
+                // Verificar si tiene productos asociados
+                if (presentacion.Productos.Any())
+                {
+                    return BadRequest(new 
+                    { 
+                        message = "No se puede eliminar la presentación porque tiene productos asociados",
+                        productosCount = presentacion.Productos.Count
+                    });
+                }
+
+                _context.Presentaciones.Remove(presentacion);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Presentación eliminada exitosamente" });
             }
-
-            _context.Presentaciones.Remove(presentaciones);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al eliminar la presentación", error = ex.Message });
+            }
         }
 
-        private bool PresentacionesExists(int id)
+        private bool PresentacionExists(int id)
         {
             return _context.Presentaciones.Any(e => e.Id == id);
         }

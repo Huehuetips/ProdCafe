@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace ApiEjemplo.Models
 {
@@ -31,8 +32,13 @@ namespace ApiEjemplo.Models
         public string? Observaciones { get; set; }
 
         // Navigation properties
+        [JsonIgnore]
         public ICollection<OrdenCompraTipoGranoLote> OrdenCompraTipoGranoLotes { get; set; } = new List<OrdenCompraTipoGranoLote>();
+        
+        [JsonIgnore]
         public ICollection<LotesTerminados> LotesTerminados { get; set; } = new List<LotesTerminados>();
+        
+        [JsonIgnore]
         public ICollection<LoteEtapa> LoteEtapas { get; set; } = new List<LoteEtapa>();
     }
 }

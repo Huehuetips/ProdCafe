@@ -23,84 +23,234 @@ namespace ApiEjemplo.Controllers
 
         // GET: api/LotesTerminados
         [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<IEnumerable<LotesTerminados>>> GetLotesTerminados()
         {
-            return await _context.LotesTerminados.ToListAsync();
+            try
+            {
+                var lotesTerminados = await _context.LotesTerminados
+                    .Include(lt => lt.Lote)
+                    .Include(lt => lt.Producto)
+                        .ThenInclude(p => p.Presentacion)
+                    .Include(lt => lt.Cataciones)
+                    .ToListAsync();
+                
+                return Ok(lotesTerminados);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener los lotes terminados", error = ex.Message });
+            }
         }
 
         // GET: api/LotesTerminados/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<LotesTerminados>> GetLotesTerminados(int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<LotesTerminados>> GetLoteTerminado(int id)
         {
-            var lotesTerminados = await _context.LotesTerminados.FindAsync(id);
-
-            if (lotesTerminados == null)
+            try
             {
-                return NotFound();
-            }
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
 
-            return lotesTerminados;
+                var loteTerminado = await _context.LotesTerminados
+                    .Include(lt => lt.Lote)
+                    .Include(lt => lt.Producto)
+                        .ThenInclude(p => p.Presentacion)
+                    .Include(lt => lt.Cataciones)
+                    .Include(lt => lt.PedidoLoteTerminados)
+                    .FirstOrDefaultAsync(lt => lt.Id == id);
+
+                if (loteTerminado == null)
+                {
+                    return NotFound(new { message = $"Lote terminado con ID {id} no encontrado" });
+                }
+
+                return Ok(loteTerminado);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener el lote terminado", error = ex.Message });
+            }
         }
 
         // PUT: api/LotesTerminados/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutLotesTerminados(int id, LotesTerminados lotesTerminados)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> PutLoteTerminado(int id, LotesTerminados loteTerminado)
         {
-            if (id != lotesTerminados.Id)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(lotesTerminados).State = EntityState.Modified;
-
             try
             {
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
+
+                if (id != loteTerminado.Id)
+                {
+                    return BadRequest(new { message = "El ID de la URL no coincide con el ID del lote terminado" });
+                }
+
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                // Validar que el lote exista
+                var loteExiste = await _context.Lotes.AnyAsync(l => l.Id == loteTerminado.LoteId);
+                if (!loteExiste)
+                {
+                    return BadRequest(new { message = $"El lote con ID {loteTerminado.LoteId} no existe" });
+                }
+
+                // Validar que el producto exista
+                var productoExiste = await _context.Productos.AnyAsync(p => p.Id == loteTerminado.ProductoId);
+                if (!productoExiste)
+                {
+                    return BadRequest(new { message = $"El producto con ID {loteTerminado.ProductoId} no existe" });
+                }
+
+                // Validar fechas
+                if (loteTerminado.FechaVencimiento < loteTerminado.FechaEnvasado)
+                {
+                    return BadRequest(new { message = "La fecha de vencimiento no puede ser anterior a la fecha de envasado" });
+                }
+
+                var loteExistente = await _context.LotesTerminados.FindAsync(id);
+                if (loteExistente == null)
+                {
+                    return NotFound(new { message = $"Lote terminado con ID {id} no encontrado" });
+                }
+
+                // Actualizar propiedades
+                loteExistente.LoteId = loteTerminado.LoteId;
+                loteExistente.ProductoId = loteTerminado.ProductoId;
+                loteExistente.FechaEnvasado = loteTerminado.FechaEnvasado;
+                loteExistente.FechaVencimiento = loteTerminado.FechaVencimiento;
+
                 await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Lote terminado actualizado exitosamente", loteTerminado = loteExistente });
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!LotesTerminadosExists(id))
+                if (!LoteTerminadoExists(id))
                 {
-                    return NotFound();
+                    return NotFound(new { message = $"Lote terminado con ID {id} no encontrado" });
                 }
-                else
-                {
-                    throw;
-                }
+                throw;
             }
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al actualizar el lote terminado", error = ex.Message });
+            }
         }
 
         // POST: api/LotesTerminados
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<LotesTerminados>> PostLotesTerminados(LotesTerminados lotesTerminados)
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<LotesTerminados>> PostLoteTerminado(LotesTerminados loteTerminado)
         {
-            _context.LotesTerminados.Add(lotesTerminados);
-            await _context.SaveChangesAsync();
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
 
-            return CreatedAtAction("GetLotesTerminados", new { id = lotesTerminados.Id }, lotesTerminados);
+                // Validar que el lote exista
+                var loteExiste = await _context.Lotes.AnyAsync(l => l.Id == loteTerminado.LoteId);
+                if (!loteExiste)
+                {
+                    return BadRequest(new { message = $"El lote con ID {loteTerminado.LoteId} no existe" });
+                }
+
+                // Validar que el producto exista
+                var productoExiste = await _context.Productos.AnyAsync(p => p.Id == loteTerminado.ProductoId);
+                if (!productoExiste)
+                {
+                    return BadRequest(new { message = $"El producto con ID {loteTerminado.ProductoId} no existe" });
+                }
+
+                // Validar fechas
+                if (loteTerminado.FechaVencimiento < loteTerminado.FechaEnvasado)
+                {
+                    return BadRequest(new { message = "La fecha de vencimiento no puede ser anterior a la fecha de envasado" });
+                }
+
+                _context.LotesTerminados.Add(loteTerminado);
+                await _context.SaveChangesAsync();
+
+                // Cargar relaciones para la respuesta
+                await _context.Entry(loteTerminado).Reference(lt => lt.Lote).LoadAsync();
+                await _context.Entry(loteTerminado).Reference(lt => lt.Producto).LoadAsync();
+
+                return CreatedAtAction(nameof(GetLoteTerminado), new { id = loteTerminado.Id }, loteTerminado);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al crear el lote terminado", error = ex.Message });
+            }
         }
 
         // DELETE: api/LotesTerminados/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteLotesTerminados(int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteLoteTerminado(int id)
         {
-            var lotesTerminados = await _context.LotesTerminados.FindAsync(id);
-            if (lotesTerminados == null)
+            try
             {
-                return NotFound();
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
+
+                var loteTerminado = await _context.LotesTerminados
+                    .Include(lt => lt.Cataciones)
+                    .Include(lt => lt.PedidoLoteTerminados)
+                    .FirstOrDefaultAsync(lt => lt.Id == id);
+
+                if (loteTerminado == null)
+                {
+                    return NotFound(new { message = $"Lote terminado con ID {id} no encontrado" });
+                }
+
+                // Verificar si tiene cataciones o pedidos asociados
+                if (loteTerminado.Cataciones.Any() || loteTerminado.PedidoLoteTerminados.Any())
+                {
+                    return BadRequest(new 
+                    { 
+                        message = "No se puede eliminar el lote terminado porque tiene cataciones o pedidos asociados",
+                        catacionesCount = loteTerminado.Cataciones.Count,
+                        pedidosCount = loteTerminado.PedidoLoteTerminados.Count
+                    });
+                }
+
+                _context.LotesTerminados.Remove(loteTerminado);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Lote terminado eliminado exitosamente" });
             }
-
-            _context.LotesTerminados.Remove(lotesTerminados);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al eliminar el lote terminado", error = ex.Message });
+            }
         }
 
-        private bool LotesTerminadosExists(int id)
+        private bool LoteTerminadoExists(int id)
         {
             return _context.LotesTerminados.Any(e => e.Id == id);
         }

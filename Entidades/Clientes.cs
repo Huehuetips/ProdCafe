@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace ApiEjemplo.Models
 {
@@ -29,6 +30,7 @@ namespace ApiEjemplo.Models
         public string? Email { get; set; }
 
         // Navigation properties
+        [JsonIgnore]
         public ICollection<Pedidos> Pedidos { get; set; } = new List<Pedidos>();
     }
 }

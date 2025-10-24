@@ -271,3 +271,4 @@ D:\ApiEjemplo\obj\Debug\net9.0\ref\ApiEjemplo.dll
 D:\ApiEjemplo\bin\Debug\net9.0\Swashbuckle.AspNetCore.Swagger.dll
 D:\ApiEjemplo\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerGen.dll
 D:\ApiEjemplo\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerUI.dll
+D:\ApiEjemplo\obj\Debug\net9.0\ApiEjemplo.sourcelink.json

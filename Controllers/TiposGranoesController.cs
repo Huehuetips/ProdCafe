@@ -23,84 +23,215 @@ namespace ApiEjemplo.Controllers
 
         // GET: api/TiposGranoes
         [HttpGet]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<IEnumerable<TiposGrano>>> GetTiposGranos()
         {
-            return await _context.TiposGranos.ToListAsync();
+            try
+            {
+                var tiposGrano = await _context.TiposGranos
+                    .Include(tg => tg.OrdenCompraTipoGranos)
+                        .ThenInclude(octg => octg.OrdenCompra)
+                    .ToListAsync();
+                
+                return Ok(tiposGrano);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener los tipos de grano", error = ex.Message });
+            }
         }
 
         // GET: api/TiposGranoes/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<TiposGrano>> GetTiposGrano(int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<TiposGrano>> GetTipoGrano(int id)
         {
-            var tiposGrano = await _context.TiposGranos.FindAsync(id);
-
-            if (tiposGrano == null)
+            try
             {
-                return NotFound();
-            }
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
 
-            return tiposGrano;
+                var tipoGrano = await _context.TiposGranos
+                    .Include(tg => tg.OrdenCompraTipoGranos)
+                        .ThenInclude(octg => octg.OrdenCompra)
+                            .ThenInclude(oc => oc.Proveedor)
+                    .FirstOrDefaultAsync(tg => tg.Id == id);
+
+                if (tipoGrano == null)
+                {
+                    return NotFound(new { message = $"Tipo de grano con ID {id} no encontrado" });
+                }
+
+                return Ok(tipoGrano);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al obtener el tipo de grano", error = ex.Message });
+            }
         }
 
         // PUT: api/TiposGranoes/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutTiposGrano(int id, TiposGrano tiposGrano)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> PutTipoGrano(int id, TiposGrano tipoGrano)
         {
-            if (id != tiposGrano.Id)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(tiposGrano).State = EntityState.Modified;
-
             try
             {
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
+
+                if (id != tipoGrano.Id)
+                {
+                    return BadRequest(new { message = "El ID de la URL no coincide con el ID del tipo de grano" });
+                }
+
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                // Validar que el nombre no esté vacío
+                if (string.IsNullOrWhiteSpace(tipoGrano.Nombre))
+                {
+                    return BadRequest(new { message = "El nombre del tipo de grano es requerido" });
+                }
+
+                // Validar valores válidos
+                var nombresValidos = new[] { "Arábica", "Robusta", "Blends", "arábica", "robusta", "blends" };
+                if (!nombresValidos.Contains(tipoGrano.Nombre))
+                {
+                    return BadRequest(new { message = "Nombre inválido. Debe ser: Arábica, Robusta o Blends" });
+                }
+
+                var tipoGranoExistente = await _context.TiposGranos.FindAsync(id);
+                if (tipoGranoExistente == null)
+                {
+                    return NotFound(new { message = $"Tipo de grano con ID {id} no encontrado" });
+                }
+
+                // Actualizar propiedades
+                tipoGranoExistente.Nombre = tipoGrano.Nombre;
+
                 await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Tipo de grano actualizado exitosamente", tipoGrano = tipoGranoExistente });
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!TiposGranoExists(id))
+                if (!TipoGranoExists(id))
                 {
-                    return NotFound();
+                    return NotFound(new { message = $"Tipo de grano con ID {id} no encontrado" });
                 }
-                else
-                {
-                    throw;
-                }
+                throw;
             }
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al actualizar el tipo de grano", error = ex.Message });
+            }
         }
 
         // POST: api/TiposGranoes
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<TiposGrano>> PostTiposGrano(TiposGrano tiposGrano)
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<TiposGrano>> PostTipoGrano(TiposGrano tipoGrano)
         {
-            _context.TiposGranos.Add(tiposGrano);
-            await _context.SaveChangesAsync();
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
 
-            return CreatedAtAction("GetTiposGrano", new { id = tiposGrano.Id }, tiposGrano);
+                // Validar que el nombre no esté vacío
+                if (string.IsNullOrWhiteSpace(tipoGrano.Nombre))
+                {
+                    return BadRequest(new { message = "El nombre del tipo de grano es requerido" });
+                }
+
+                // Validar valores válidos
+                var nombresValidos = new[] { "Arábica", "Robusta", "Blends", "arábica", "robusta", "blends" };
+                if (!nombresValidos.Contains(tipoGrano.Nombre))
+                {
+                    return BadRequest(new { message = "Nombre inválido. Debe ser: Arábica, Robusta o Blends" });
+                }
+
+                // Validar que no exista un tipo de grano con el mismo nombre (case-insensitive)
+                var nombreExiste = await _context.TiposGranos
+                    .AnyAsync(tg => tg.Nombre.ToLower() == tipoGrano.Nombre.ToLower());
+                if (nombreExiste)
+                {
+                    return BadRequest(new { message = "Ya existe un tipo de grano con ese nombre" });
+                }
+
+                _context.TiposGranos.Add(tipoGrano);
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction(nameof(GetTipoGrano), new { id = tipoGrano.Id }, tipoGrano);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al crear el tipo de grano", error = ex.Message });
+            }
         }
 
         // DELETE: api/TiposGranoes/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteTiposGrano(int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteTipoGrano(int id)
         {
-            var tiposGrano = await _context.TiposGranos.FindAsync(id);
-            if (tiposGrano == null)
+            try
             {
-                return NotFound();
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "El ID debe ser mayor que 0" });
+                }
+
+                var tipoGrano = await _context.TiposGranos
+                    .Include(tg => tg.OrdenCompraTipoGranos)
+                    .FirstOrDefaultAsync(tg => tg.Id == id);
+
+                if (tipoGrano == null)
+                {
+                    return NotFound(new { message = $"Tipo de grano con ID {id} no encontrado" });
+                }
+
+                // Verificar si tiene órdenes de compra asociadas
+                if (tipoGrano.OrdenCompraTipoGranos.Any())
+                {
+                    return BadRequest(new 
+                    { 
+                        message = "No se puede eliminar el tipo de grano porque tiene órdenes de compra asociadas",
+                        ordenesCount = tipoGrano.OrdenCompraTipoGranos.Count
+                    });
+                }
+
+                _context.TiposGranos.Remove(tipoGrano);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Tipo de grano eliminado exitosamente" });
             }
-
-            _context.TiposGranos.Remove(tiposGrano);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error al eliminar el tipo de grano", error = ex.Message });
+            }
         }
 
-        private bool TiposGranoExists(int id)
+        private bool TipoGranoExists(int id)
         {
             return _context.TiposGranos.Any(e => e.Id == id);
         }

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace ApiEjemplo.Models
 {
@@ -14,6 +15,7 @@ namespace ApiEjemplo.Models
         public required string Nombre { get; set; }
 
         // Navigation properties
+        [JsonIgnore]
         public ICollection<LoteEtapa> LoteEtapas { get; set; } = new List<LoteEtapa>();
     }
 }
